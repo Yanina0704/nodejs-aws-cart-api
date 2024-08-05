@@ -56,35 +56,104 @@ export class CartService {
         }
       },
     });
+  }
 
-    async findOrCreateByUserId(userId: string) {
+  async findOrCreateByUserId(userId: string) {
+
       const userCart = this.findByUserId(userId);
+      return userCart || await this.createByUserId(userId);
+    }
     
+    async updateByUserId(
+      userId: string,
+      cartItem: Partial<CartItemEntity>,
+    ) {
+    const cart = await this.findOrCreateByUserId(userId);
 
-    if (userCart) {
-      return userCart;
+    if (cartItem.count === 1) {
+      const newItem = new CartItemEntity(cartItem);
+      const product = new ProductEntity(cartItem.product);
+      newItem.product = product;
+      newItem.cart = cart;
+
+      await this.cartItemsRepository.save(newItem);
+    } else if (cartItem.count === 0) {
+      await this.cartItemsRepository.delete({
+        product: {
+          id: cartItem.product.id
+        },
+        cart: {
+          id: cart.id
+        },
+      });
+    } else {
+      const itemToUpdate = await this.cartItemsRepository.findOne({
+        where: {
+          product: {
+            id: cartItem.product.id
+          },
+          cart: {
+            id: cart.id
+          },
+        },
+      });
+
+      await this.cartItemsRepository.update(
+        {
+          id: itemToUpdate.id
+        },
+        {
+          count: cartItem.count,
+        },
+      );
+    
+      return await this.cartRepository.findOne({
+        where: {
+          id: cart.id
+        },
+        relations: {
+          items: {
+            product: true
+          }
+        },
+      });
+  }
     }
 
-    return this.createByUserId(userId);
+  async updateUserCartStatus(
+    queryRunner: QueryRunner,
+    userId: string,
+    status: CartStatuses,
+  ) {
+    const userCart = await this.cartRepository.findOne({
+      where: {
+        status: CartStatuses.OPEN, user: {
+          id: userId
+        }
+      },
+    });
+
+    if (!userCart) {
+      throw new NotFoundException('Cart not found');
+
+      userCart.status = status;
+  
+      await queryRunner.manager.getRepository(CartEntity).save(userCart);
   }
-
-  updateByUserId(userId: string, { items }: Cart): Cart {
-    const { id, ...rest } = this.findOrCreateByUserId(userId);
-
-    const updatedCart = {
-      id,
-      ...rest,
-      items: [ ...items ],
-    }
-
-    this.userCarts[ userId ] = { ...updatedCart };
-
-    return { ...updatedCart };
-  }
-
-  removeByUserId(userId): void {
-    this.userCarts[ userId ] = null;
-  }
-
 }
+  async removeByUserId(userId: string) {
+    const userCart = await this.cartRepository.findOne({
+      where: {
+        status: CartStatuses.OPEN, user: {
+        id: userId
+      }
+    },
+    });
+
+    if (!userCart) {
+      throw new NotFoundException('Cart not found');
+    }
+
+    return await this.cartRepository.remove(userCart);
+  }
 }
