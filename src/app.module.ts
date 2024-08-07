@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as dotenv from 'dotenv';
-import { dataSourceOptions } from './db/source';
+import { dataSourceOptions } from 'src/db/source';
 
 import { AppController } from './app.controller';
 
