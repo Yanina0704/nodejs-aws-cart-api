@@ -1,5 +1,10 @@
 import { CartItem } from '../../cart/models';
 
+export enum OrderStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  ORDERED = 'ORDERED',
+}
+
 export type Order = {
   id?: string,
   userId: string;

@@ -1,31 +1,65 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { v4 } from 'uuid';
 
 import { Cart } from '../models';
+import { QueryRunner, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { CartItemEntity } from 'src/entities/cartItem.entity';
+import { UserEntity } from 'src/entities/user.entity';
+import { ProductEntity } from 'src/entities/product.entity';
+import { CartStatuses } from 'src/cart/models';
+import { CartEntity } from 'src/entities/cart.entity';
 
 @Injectable()
 export class CartService {
-  private userCarts: Record<string, Cart> = {};
+  constructor(
+    @InjectRepository(CartItemEntity)
+    private cartItemsRepository: Repository<CartItemEntity>,
+    @InjectRepository(CartEntity)
+    private cartRepository: Repository<CartEntity>,
+  ) {}
 
-  findByUserId(userId: string): Cart {
-    return this.userCarts[ userId ];
+  async findByUserId(userId: string) {
+    return await this.cartRepository.findOne({
+      where: {
+        status: CartStatuses.OPEN, user: {
+        id: userId
+        } 
+      },
+      relations: {
+        items: {
+          product: true
+        }
+      },
+    });
   }
 
-  createByUserId(userId: string) {
-    const id = v4();
-    const userCart = {
-      id,
-      items: [],
-    };
+  async createByUserId(userId: string) {
+    const cart = this.cartRepository.create({
+      status: CartStatuses.OPEN
+    });
 
-    this.userCarts[ userId ] = userCart;
+    cart.user = new UserEntity({
+      id: userId
+    });
 
-    return userCart;
-  }
+    const createdCart = await this.cartRepository.save(cart);
 
-  findOrCreateByUserId(userId: string): Cart {
-    const userCart = this.findByUserId(userId);
+    return await this.cartRepository.findOne({
+      where: {
+        id: createdCart.id
+      },
+      relations: {
+        items: {
+          product: true
+        }
+      },
+    });
+
+    async findOrCreateByUserId(userId: string) {
+      const userCart = this.findByUserId(userId);
+    
 
     if (userCart) {
       return userCart;
@@ -52,4 +86,5 @@ export class CartService {
     this.userCarts[ userId ] = null;
   }
 
+}
 }
